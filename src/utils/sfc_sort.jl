@@ -1,26 +1,32 @@
-using ClusterTrees
+using H2Trees
 
 """
-    Sort objects to lie on a space filling curve
+    sort_sfc(points)
+
+Return indices that order `points` along the recursive Hilbert space-filling
+curve used by `H2Trees.TwoNTree`.
 """
 function sort_sfc(points)
+    isempty(points) && return Int[]
 
-    ct, sz = CompScienceMeshes.boundingbox(points)
-    tree = ClusterTrees.LevelledTrees.LevelledTree(ct, sz, Int[])
+    _, sz = CompScienceMeshes.boundingbox(points)
+    iszero(sz) && return collect(eachindex(points))
 
-    smb = sz / 2^log(length(points)+1)
-    for (i,pt) = enumerate(points)
-        dest = (smallest_box_size=smb, target_point=pt)
-        state = ClusterTrees.LevelledTrees.rootstate(tree, dest)
-        ClusterTrees.update!(tree, state, i, dest) do tree, node, i
-            push!(data(tree, node).values, i)
-        end
-    end
+    # Keep approximately the same spatial resolution as the previous
+    # ClusterTrees implementation.
+    minhalfsize = sz / 2^log(length(points) + 1)
 
-    sorted = Vector{Int}()
-    for node in ClusterTrees.DepthFirstIterator(tree, root(tree))
-        append!(sorted, data(tree,node).values)
-    end
+    builder = H2Trees.TwoNTreeBuilder(
+        minhalfsize=minhalfsize,
+        minvalues=0,
+        protrusion=H2Trees.NoProtrusionCheck(),
+    )
+
+    tree = H2Trees.buildtree(points; builder=builder)
+
+    sorted = Int[]
+    sizehint!(sorted, length(points))
+    H2Trees.appendvalues!(sorted, tree, H2Trees.root(tree))
 
     return sorted
 end
